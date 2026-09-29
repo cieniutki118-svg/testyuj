@@ -1,0 +1,53 @@
+name: Signal Hunter Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run tests (report failures)
+        shell: pwsh
+        run: |
+          python -m pytest -v --junitxml=test-results.xml 2>&1 | Tee-Object -FilePath test-output.txt
+          exit $LASTEXITCODE
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results.xml
+            test-output.txt
+          if-no-files-found: warn
+
+  build-windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Build standalone EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name SP5MIG_Signal_Hunter --collect-submodules sounddevice --collect-submodules soundfile main.py
+      - name: Upload EXE (experimental; tests are a separate job)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SP5MIG-Signal-Hunter-Windows-EXPERIMENTAL
+          path: dist/SP5MIG_Signal_Hunter.exe
+          if-no-files-found: error
